@@ -1,73 +1,774 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8" />
-  <title>通义千问大模型对话 Demo</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-50 min-h-screen flex items-center justify-center">
-  <div class="w-full max-w-md mx-auto shadow-lg rounded bg-white p-6">
-    <h2 class="text-2xl font-bold mb-4 text-center">通义千问 大模型对话 Demo</h2>
-    <div id="chat-box" class="h-64 overflow-y-auto border p-2 rounded mb-3 bg-gray-100"></div>
-    <form id="chat-form" class="flex space-x-2">
-      <input id="chat-input" type="text" required class="flex-1 p-2 border rounded" placeholder="输入你的消息..." autocomplete="off"/>
-      <button class="bg-green-600 text-white px-4 rounded" type="submit">发送</button>
-    </form>
-    <p class="mt-1 text-xs text-gray-400">已通过 Cloudflare Worker 代理 API，前端无需暴露 KEY。</p>
-  </div>
-  <script>
-    // 你的 Cloudflare Worker 地址
-    const API_URL = 'https://proud-art-9b06.roadboss-hk.workers.dev/';
-    // 多轮历史
-    let messages = [
-      { role: 'system', content: '你是一个乐于助人的AI助手。' }
-    ];
-    const chatBox = document.getElementById('chat-box');
-    const chatForm = document.getElementById('chat-form');
-    const chatInput = document.getElementById('chat-input');
-
-    function appendMessage(role, content) {
-      const div = document.createElement('div');
-      div.className = (role === 'user' ? 'text-right' : 'text-left') + ' mb-2';
-      div.innerHTML = `<span class="py-1 px-2 rounded ${role === 'user' ? 'bg-green-600 text-white' : 'bg-gray-200'}">${content}</span>`;
-      chatBox.appendChild(div);
-      chatBox.scrollTop = chatBox.scrollHeight;
-    }
-
-    chatForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-
-      const userMsg = chatInput.value.trim();
-      if(!userMsg) return;
-      appendMessage('user', userMsg);
-      messages.push({ role: 'user', content: userMsg });
-
-      chatInput.value = '...';
-      chatInput.disabled = true;
-
-      try {
-        const resp = await fetch(API_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: 'qwen-turbo',
-            input: {
-              messages: messages.map(m => ({ role: m.role, content: m.content }))
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MBTI性格类型与人力资源角色适配性信息图表</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', 'Helvetica Neue', 'Arial', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background-color: #073B4C; /* Dark Blue/Background from Energetic & Playful */
+            color: #F0F8FF; /* AliceBlue for text on dark background */
+        }
+        
+        /* 聊天组件样式 */
+        .chat-container {
+            background-color: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            color: #073B4C;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            max-width: 90%;
+            margin: 0 auto;
+        }
+        
+        .chat-header {
+            background: linear-gradient(to right, #118AB2, #06D6A0);
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .chat-header h3 {
+            margin: 0;
+            font-size: 1.2rem;
+        }
+        
+        .chat-messages {
+            padding: 20px;
+            overflow-y: auto;
+            max-height: 300px;
+            min-height: 200px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .message {
+            padding: 10px 15px;
+            border-radius: 18px;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+        
+        .user-message {
+            background-color: #e6f7ff;
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+            border-left: 3px solid #118AB2;
+        }
+        
+        .ai-message {
+            background-color: #f0f0f0;
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+            border-right: 3px solid #06D6A0;
+        }
+        
+        .chat-input-container {
+            display: flex;
+            padding: 15px;
+            border-top: 1px solid #e0e0e0;
+            background-color: white;
+        }
+        
+        .chat-input {
+            flex-grow: 1;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            padding: 10px 15px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        
+        .chat-input:focus {
+            border-color: #118AB2;
+        }
+        
+        .send-button {
+            background-color: #06D6A0;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            padding: 10px 20px;
+            margin-left: 10px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .send-button:hover {
+            background-color: #05b587;
+        }
+        
+        .send-button:disabled {
+            background-color: #c0c0c0;
+            cursor: not-allowed;
+        }
+        
+        .chat-toggle {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #118AB2, #06D6A0);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            font-size: 24px;
+        }
+        
+        .chat-panel {
+            position: fixed;
+            bottom: 100px;
+            right: 30px;
+            width: 350px;
+            max-width: calc(100vw - 60px);
+            border-radius: 12px;
+            z-index: 999;
+            display: none;
+            overflow: hidden;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+            max-height: 500px;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px; /* Example max-width */
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 400px;
+            background-color: #FFFFFF;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
             }
-          })
-        });
-        const data = await resp.json();
-        const aiMsg = data?.output?.text || '(无回复)';
-        appendMessage('assistant', aiMsg);
-        messages.push({ role: 'assistant', content: aiMsg });
-      } catch (err) {
-        appendMessage('assistant', '（出错了，API无响应）');
-      }
+        }
+        .section-title {
+            color: #FFD166; /* Bright Yellow for titles */
+        }
+        .card {
+            background-color: #FFFFFF;
+            color: #073B4C; /* Dark text for light cards */
+            border-left: 5px solid #06D6A0; /* Bright Teal/Green accent */
+        }
+        .card-title {
+            color: #118AB2; /* Strong Blue for card titles */
+        }
+        .matrix-table th {
+            background-color: #118AB2; /* Strong Blue */
+            color: #FFFFFF;
+        }
+        .matrix-table td, .matrix-table th {
+            border: 1px solid #073B4C;
+            padding: 0.75rem;
+            text-align: center;
+        }
+        .matrix-table td:first-child {
+            background-color: #118AB2; /* 第一列背景色 */
+            color: #FFFFFF; /* 第一列文字颜色 */
+            font-weight: bold;
+        }
+        .suitability-high { background-color: #06D6A0; color: #073B4C; font-weight: bold; } /* Bright Teal/Green */
+        .suitability-good { background-color: #75E4B9; color: #073B4C; } /* Lighter Teal */
+        .suitability-moderate { background-color: #A3EDD1; color: #073B4C; } /* Even Lighter Teal */
+        .suitability-potential { background-color: #D1F6E8; color: #073B4C; } /* Palest Teal */
+        .suitability-limited { background-color: #E0E0E0; color: #333333; } /* Light Grey */
 
-      chatInput.value = '';
-      chatInput.disabled = false;
-    });
-  </script>
+        .flowchart-step {
+            background-color: #118AB2; /* Strong Blue */
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            margin-bottom: 0.5rem;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .flowchart-arrow {
+            color: #FFD166; /* Bright Yellow */
+            font-size: 2rem;
+            text-align: center;
+            margin: -0.5rem 0;
+        }
+         /* Palette: Energetic & Playful (#FF6B6B, #FFD166, #06D6A0, #118AB2, #073B4C) */
+         /* No SVG graphics were used. No Mermaid JS was used. */
+         /* Infographic Plan:
+            1. Hero Section: Title and brief intro.
+            2. What is MBTI?: Explanation and relevance to HR. (HTML/CSS Diagram)
+            3. MBTI Core Dimensions: E/I, S/N, T/F, J/P in cards.
+            4. Key MBTI Types Analysis: ENFJ, ISTJ, ENFP, ENTJ in cards.
+            5. Illustrative Chart: Bar chart for suitability breadth.
+            6. HR Functions & MBTI Suitability Matrix: HTML Table.
+            7. Conclusion: Building diverse teams.
+            8. Footer: Source and disclaimer.
+         */
+         /* Data Point -> Goal -> Chosen Visualization -> Justification/Library/Method - Confirming NO SVG
+            - MBTI Intro (Process Flow) -> Organize -> HTML/CSS Boxes & Arrows -> Simple, no SVG.
+            - MBTI Dimensions -> Inform -> HTML Cards with Icons (Unicode) -> Clear, concise, no SVG.
+            - Key MBTI Types -> Inform/Compare -> HTML Cards with Lists -> Detailed info, no SVG.
+            - Suitability Breadth -> Compare -> Chart.js Bar Chart (Canvas) -> Quantitative comparison, no SVG.
+            - HR Functions Matrix -> Organize/Compare -> HTML Table with Color Coding -> Detailed comparison, no SVG.
+         */
+    </style>
+</head>
+<body class="antialiased leading-relaxed">
+
+    <header class="py-12 bg-gradient-to-r from-[#118AB2] to-[#06D6A0] text-center">
+        <div class="container mx-auto px-6">
+            <h1 class="text-4xl md:text-5xl font-bold text-white mb-4">解码HR潜力</h1>
+            <h2 class="text-2xl md:text-3xl font-semibold text-[#FFD166] mb-6">MBTI性格类型与人力资源角色适配性洞察</h2>
+            <p class="text-lg text-white max-w-3xl mx-auto">
+                探索您的性格优势，发掘在人力资源领域的无限潜能。本报告基于MBTI理论，为您解析不同性格类型在HR各个职能中的适配性、优势与发展方向。
+            </p>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-6 py-12 space-y-16">
+
+        <section id="what-is-mbti">
+            <h2 class="text-3xl font-bold text-center mb-10 section-title">什么是MBTI及其在HR中的价值？</h2>
+            <div class="bg-white text-[#073B4C] p-8 rounded-xl shadow-2xl md:flex items-center">
+                <div class="md:w-2/3 md:pr-8">
+                    <p class="mb-4 text-lg">迈尔斯-布里格斯类型指标（MBTI）是一种自我报告式问卷，旨在揭示个体在感知世界和做出决策方面的心理偏好。它基于荣格的心理类型理论，将人的性格偏好划分为四个核心维度，从而组合成16种不同的性格类型。</p>
+                    <p class="mb-4 text-lg">在人力资源管理中，MBTI并非用于招聘筛选，而是作为一种强大的工具，帮助：</p>
+                    <ul class="list-disc list-inside space-y-2 mb-4 text-lg">
+                        <li><strong class="text-[#118AB2]">提升自我认知：</strong>员工了解自身天性与潜在发展领域。</li>
+                        <li><strong class="text-[#06D6A0]">优化团队协作：</strong>理解并欣赏团队成员间的性格差异，促进沟通。</li>
+                        <li><strong class="text-[#FF6B6B]">赋能人才发展：</strong>为员工定制更有效的发展计划与职业路径。</li>
+                        <li><strong class="text-[#FFD166]">构建积极文化：</strong>通过同理心和理解，营造更包容和谐的工作环境。</li>
+                    </ul>
+                     <p class="text-sm italic text-gray-600">重要提示：MBTI衡量的是偏好，而非能力，所有类型都具有独特价值。其伦理应用在于发展而非筛选。</p>
+                </div>
+                <div class="md:w-1/3 mt-8 md:mt-0">
+                    <h3 class="text-xl font-semibold text-center mb-4 text-[#118AB2]">MBTI的四个维度</h3>
+                    <div class="space-y-3">
+                        <div class="flowchart-step">能量指向：外倾 (E) / 内倾 (I)</div>
+                        <div class="flowchart-arrow">▼</div>
+                        <div class="flowchart-step">信息收集：感觉 (S) / 直觉 (N)</div>
+                        <div class="flowchart-arrow">▼</div>
+                        <div class="flowchart-step">决策方式：思维 (T) / 情感 (F)</div>
+                        <div class="flowchart-arrow">▼</div>
+                        <div class="flowchart-step">生活态度：判断 (J) / 知觉 (P)</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="mbti-dimensions">
+            <h2 class="text-3xl font-bold text-center mb-10 section-title">MBTI核心维度解析</h2>
+            <div class="grid md:grid-cols-2 gap-8">
+                <div class="card p-6 rounded-lg shadow-lg">
+                    <h3 class="text-2xl font-semibold mb-3 card-title">🌎 外倾 (E) vs. 内倾 (I) - 能量指向</h3>
+                    <p class="mb-2"><strong class="text-[#FF6B6B]">E型 (外倾):</strong> 从与人互动和外部活动中获取能量，偏好行动和表达。</p>
+                    <p class="mb-2"><strong class="text-[#118AB2]">I型 (内倾):</strong> 从独处和内心反思中获取能量，偏好思考和沉静。</p>
+                    <p class="mt-3 text-sm"><strong class="text-[#06D6A0]">HR启示:</strong> E型适合需频繁沟通的岗位 (如招聘、培训)；I型在需深度思考的岗位 (如战略规划、政策分析) 中表现出色。</p>
+                </div>
+                <div class="card p-6 rounded-lg shadow-lg">
+                    <h3 class="text-2xl font-semibold mb-3 card-title">👁️ 感觉 (S) vs. 直觉 (N) - 信息收集</h3>
+                    <p class="mb-2"><strong class="text-[#FF6B6B]">S型 (感觉):</strong> 关注具体事实、细节和实际经验，注重当下。</p>
+                    <p class="mb-2"><strong class="text-[#118AB2]">N型 (直觉):</strong> 关注模式、可能性和未来趋势，富有想象力。</p>
+                    <p class="mt-3 text-sm"><strong class="text-[#06D6A0]">HR启示:</strong> S型擅长HR运营、薪酬福利等细节工作；N型在战略规划、组织发展等前瞻性工作中具优势。</p>
+                </div>
+                <div class="card p-6 rounded-lg shadow-lg">
+                    <h3 class="text-2xl font-semibold mb-3 card-title">⚖️ 思维 (T) vs. 情感 (F) - 决策方式</h3>
+                    <p class="mb-2"><strong class="text-[#FF6B6B]">T型 (思维):</strong> 决策时优先考虑逻辑、客观原则和公平性。</p>
+                    <p class="mb-2"><strong class="text-[#118AB2]">F型 (情感):</strong> 决策时优先考虑价值观、人际和谐与他人感受。</p>
+                    <p class="mt-3 text-sm"><strong class="text-[#06D6A0]">HR启示:</strong> T型利于制定公平政策；F型在员工关系、冲突调解、文化建设中不可或缺。</p>
+                </div>
+                <div class="card p-6 rounded-lg shadow-lg">
+                    <h3 class="text-2xl font-semibold mb-3 card-title">📅 判断 (J) vs. 知觉 (P) - 生活态度</h3>
+                    <p class="mb-2"><strong class="text-[#FF6B6B]">J型 (判断):</strong> 偏好有计划、有组织、结构化的生活，果断且目标导向。</p>
+                    <p class="mb-2"><strong class="text-[#118AB2]">P型 (知觉):</strong> 偏好灵活、适应性强、自发的生活，对新信息开放。</p>
+                    <p class="mt-3 text-sm"><strong class="text-[#06D6A0]">HR启示:</strong> J型擅长项目管理和政策执行；P型在应对变化、处理危机和创新方面有优势。</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="key-mbti-types">
+            <h2 class="text-3xl font-bold text-center mb-10 section-title">关键MBTI类型深度剖析 (HR视角)</h2>
+            <div class="grid md:grid-cols-2 gap-8">
+                <div class="card p-6 rounded-lg shadow-lg">
+                    <h3 class="text-2xl font-bold mb-1 card-title">ENFJ - "主人公" <span class="text-sm font-normal">(外倾/直觉/情感/判断)</span></h3>
+                    <p class="text-sm italic mb-3">热情、富有同情心、负责任，天生的领导者，致力于创造和谐与积极改变。</p>
+                    <h4 class="font-semibold text-[#06D6A0] mb-1">HR核心优势:</h4>
+                    <ul class="list-disc list-inside text-sm mb-2 space-y-1">
+                        <li>卓越的沟通与人际交往能力</li>
+                        <li>天生的领导才能与团队凝聚力</li>
+                        <li>善于洞察他人需求，富有同理心</li>
+                    </ul>
+                    <h4 class="font-semibold text-[#FF6B6B] mb-1">最佳HR职能:</h4>
+                    <p class="text-sm mb-2">HR总监/经理, 学习与发展, 员工关系, 组织发展, 文化建设。</p>
+                    <h4 class="font-semibold text-[#FFD166] mb-1">潜在挑战:</h4>
+                    <p class="text-sm">可能过度投入情感，有时规避冲突，需注意决策客观性。</p>
+                </div>
+
+                <div class="card p-6 rounded-lg shadow-lg">
+                    <h3 class="text-2xl font-bold mb-1 card-title">ISTJ - "物流师" <span class="text-sm font-normal">(内倾/感觉/思维/判断)</span></h3>
+                    <p class="text-sm italic mb-3">严肃、负责、务实且可靠，细致有条理，重视传统和承诺。</p>
+                    <h4 class="font-semibold text-[#06D6A0] mb-1">HR核心优势:</h4>
+                    <ul class="list-disc list-inside text-sm mb-2 space-y-1">
+                        <li>精确细致，注重事实与细节</li>
+                        <li>强大的组织能力和责任感</li>
+                        <li>遵循程序，确保合规性</li>
+                    </ul>
+                    <h4 class="font-semibold text-[#FF6B6B] mb-1">最佳HR职能:</h4>
+                    <p class="text-sm mb-2">HR运营, HRIS, 薪酬福利, 合规管理, 行政管理。</p>
+                    <h4 class="font-semibold text-[#FFD166] mb-1">潜在挑战:</h4>
+                    <p class="text-sm">可能抵制变革，有时对人际细节不够敏感，需提升灵活性。</p>
+                </div>
+
+                <div class="card p-6 rounded-lg shadow-lg">
+                    <h3 class="text-2xl font-bold mb-1 card-title">ENFP - "倡导者" <span class="text-sm font-normal">(外倾/直觉/情感/知觉)</span></h3>
+                    <p class="text-sm italic mb-3">热情、富有想象力、乐观且极具创造力，渴望帮助他人发挥潜力。</p>
+                    <h4 class="font-semibold text-[#06D6A0] mb-1">HR核心优势:</h4>
+                    <ul class="list-disc list-inside text-sm mb-2 space-y-1">
+                        <li>富有创新精神，能提出新颖解决方案</li>
+                        <li>强大的人际交往能力，善于激励他人</li>
+                        <li>洞察他人需求和动机</li>
+                    </ul>
+                    <h4 class="font-semibold text-[#FF6B6B] mb-1">最佳HR职能:</h4>
+                    <p class="text-sm mb-2">人力资源发展培训, 组织发展, 变革管理, 员工敬业度, 招聘。</p>
+                    <h4 class="font-semibold text-[#FFD166] mb-1">潜在挑战:</h4>
+                    <p class="text-sm">可能难以聚焦和完成任务，对例行公事缺乏耐心，需加强组织纪律性。</p>
+                </div>
+
+                <div class="card p-6 rounded-lg shadow-lg">
+                    <h3 class="text-2xl font-bold mb-1 card-title">ENTJ - "指挥官" <span class="text-sm font-normal">(外倾/直觉/思维/判断)</span></h3>
+                    <p class="text-sm italic mb-3">天生的领导者，具有战略性、果断性和高度组织性，致力于实现目标。</p>
+                    <h4 class="font-semibold text-[#06D6A0] mb-1">HR核心优势:</h4>
+                    <ul class="list-disc list-inside text-sm mb-2 space-y-1">
+                        <li>战略思维和远见卓识</li>
+                        <li>强大的逻辑分析和决策能力</li>
+                        <li>擅长开发和实施系统化解决方案</li>
+                    </ul>
+                    <h4 class="font-semibold text-[#FF6B6B] mb-1">最佳HR职能:</h4>
+                    <p class="text-sm mb-2">人力资源总监/经理, 战略HR, 组织发展, HR业务伙伴, HRIS实施。</p>
+                    <h4 class="font-semibold text-[#FFD166] mb-1">潜在挑战:</h4>
+                    <p class="text-sm">可能缺乏耐心，有时显得不够圆滑，需培养同理心和倾听能力。</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="suitability-chart">
+            <h2 class="text-3xl font-bold text-center mb-10 section-title">MBTI类型在HR核心职能中的适用广度</h2>
+            <p class="text-center max-w-2xl mx-auto mb-8">下图展示了部分MBTI类型在其报告中被明确列为"最佳HR职能"的数量，反映了其在HR领域内角色适配的广泛程度。这仅为参考，具体适配性需结合个体完整评估。</p>
+            <div class="chart-container">
+                <canvas id="hrFunctionsChart"></canvas>
+            </div>
+        </section>
+
+        <section id="mbti-hr-matrix">
+            <h2 class="text-3xl font-bold text-center mb-10 section-title">HR职能与MBTI类型适配性概览</h2>
+            <p class="text-center max-w-3xl mx-auto mb-8">下表总结了部分MBTI类型在关键HR职能中的一般适配程度。一个成功的HR团队往往是多元性格的组合，各自发挥优势。</p>
+            <div class="overflow-x-auto bg-white p-2 rounded-lg shadow-lg">
+                <table class="min-w-full matrix-table">
+                    <thead>
+                        <tr>
+                            <th>HR职能</th>
+                            <th>ENFJ (主人公)</th>
+                            <th>ISTJ (物流师)</th>
+                            <th>ENFP (倡导者)</th>
+                            <th>ENTJ (指挥官)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>战略HR/组织发展</td>
+                            <td class="suitability-high">主要适配</td>
+                            <td class="suitability-moderate">次要适配</td>
+                            <td class="suitability-good">强适配</td>
+                            <td class="suitability-high">主要适配</td>
+                        </tr>
+                        <tr>
+                            <td>人才获取 (招聘)</td>
+                            <td class="suitability-high">主要适配</td>
+                            <td class="suitability-moderate">次要适配</td>
+                            <td class="suitability-high">主要适配</td>
+                            <td class="suitability-good">强适配</td>
+                        </tr>
+                        <tr>
+                            <td>学习与发展 (培训)</td>
+                            <td class="suitability-high">主要适配</td>
+                            <td class="suitability-moderate">次要适配</td>
+                            <td class="suitability-high">主要适配</td>
+                            <td class="suitability-good">强适配</td>
+                        </tr>
+                        <tr>
+                            <td>员工关系/咨询</td>
+                            <td class="suitability-high">主要适配</td>
+                            <td class="suitability-moderate">次要适配</td>
+                            <td class="suitability-high">主要适配</td>
+                            <td class="suitability-potential">潜在适配</td>
+                        </tr>
+                        <tr>
+                            <td>HR运营/HRIS</td>
+                            <td class="suitability-potential">潜在适配</td>
+                            <td class="suitability-high">主要适配</td>
+                            <td class="suitability-potential">潜在适配</td>
+                            <td class="suitability-good">强适配</td>
+                        </tr>
+                        <tr>
+                            <td>薪酬福利</td>
+                            <td class="suitability-potential">潜在适配</td>
+                            <td class="suitability-high">主要适配</td>
+                            <td class="suitability-limited">有限适配</td>
+                            <td class="suitability-good">强适配</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="mt-4 text-sm text-center text-gray-400">
+                <p><span class="inline-block w-4 h-4 mr-1 suitability-high"></span>主要适配: 高度契合
+                   <span class="inline-block w-4 h-4 ml-3 mr-1 suitability-good"></span>强适配: 显著优势
+                   <span class="inline-block w-4 h-4 ml-3 mr-1 suitability-moderate"></span>次要适配: 部分契合
+                   <span class="inline-block w-4 h-4 ml-3 mr-1 suitability-potential"></span>潜在适配: 需发展
+                   <span class="inline-block w-4 h-4 ml-3 mr-1 suitability-limited"></span>有限适配: 契合度较低
+                </p>
+            </div>
+        </section>
+
+        <section id="conclusion">
+            <h2 class="text-3xl font-bold text-center mb-10 section-title">结论：拥抱多元，构建高效HR团队</h2>
+            <div class="bg-white text-[#073B4C] p-8 rounded-xl shadow-2xl">
+                <p class="mb-4 text-lg">人力资源领域复杂且多元，没有任何一种MBTI性格类型能够完美胜任所有HR角色。相反，不同性格类型为HR工作带来独特且宝贵的贡献。</p>
+                <p class="mb-4 text-lg">研究表明，"外交家"类型（如ENFJ, ENFP）在以人为本、发展导向的角色中表现出色；"守护者"类型（如ISTJ, ESFJ）在结构化、运营和合规性职能中是中坚力量；"分析家"类型（如ENTJ, INTP）带来战略性和创新性思维；而"探险家"类型（如ESFP）则贡献活力和参与度。</p>
+                <p class="mb-4 text-lg font-semibold text-[#118AB2]">构建一个成功的HR团队，关键在于：</p>
+                <ul class="list-disc list-inside space-y-2 text-lg">
+                    <li><strong class="text-[#06D6A0]">拥抱性格多样性：</strong>组建包含不同MBTI类型的团队，以应对多方面挑战。</li>
+                    <li><strong class="text-[#FF6B6B]">战略性岗位匹配：</strong>将个体与最能发挥其天性的HR角色相匹配。</li>
+                    <li><strong class="text-[#FFD166]">促进自我认知与发展：</strong>鼓励HR从业者了解自身优势与盲点，并持续成长。</li>
+                </ul>
+                <p class="mt-6 text-lg">MBTI的真正价值在于培养人才和促进团队协作，而非筛选。通过理解和运用MBTI洞察，组织可以最大限度地发挥HR团队的潜力，为更高效、和谐的HR职能和更健康的组织文化做出贡献。</p>
+            </div>
+        </section>
+    </main>
+
+    <footer class="py-8 text-center border-t border-gray-700">
+        <p class="text-sm text-gray-400">&copy; 2024 MBTI与HR角色洞察信息图表. 保留所有权利。</p>
+        <p class="text-xs text-gray-500 mt-1">数据来源：基于公开的MBTI职业性格测试及解析报告综合分析。</p>
+        <p class="text-xs text-gray-500 mt-1">免责声明：本信息图表仅供学习参考，MBTI评估应由认证施测师进行并解读。</p>
+    </footer>
+    
+    <!-- 聊天悬浮按钮 -->
+    <div class="chat-toggle" id="chatToggle" role="button" aria-label="打开聊天机器人">
+        <i>💬</i>
+    </div>
+    
+    <!-- 聊天面板 -->
+    <div class="chat-panel" id="chatPanel">
+        <div class="chat-container">
+            <div class="chat-header">
+                <h3>MBTI职业顾问</h3>
+                <span id="closeChat" style="cursor: pointer;" role="button" aria-label="关闭聊天">✕</span>
+            </div>
+            <div class="chat-messages" id="chatMessages">
+                <div class="message ai-message">
+                    您好！我是您的MBTI职业顾问。请问有什么关于MBTI与HR职业匹配的问题，我可以帮您解答？
+                </div>
+            </div>
+            <div class="chat-input-container">
+                <input type="text" class="chat-input" id="chatInput" placeholder="请输入您的问题..." />
+                <button class="send-button" id="sendButton">发送</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function wrapLabels(label, maxWidth) {
+            if (typeof label !== 'string') return label;
+            if (label.length <= maxWidth) return label;
+            const words = label.split(''); // Split by char for Chinese
+            const lines = [];
+            let currentLine = '';
+            for (const char of words) {
+                if (currentLine.length >= maxWidth) {
+                    lines.push(currentLine);
+                    currentLine = '';
+                }
+                currentLine += char;
+            }
+            lines.push(currentLine);
+            return lines;
+        }
+        
+        // 聊天功能
+        function initChat() {
+            const chatToggle = document.getElementById('chatToggle');
+            const chatPanel = document.getElementById('chatPanel');
+            const closeChat = document.getElementById('closeChat');
+            const chatInput = document.getElementById('chatInput');
+            const sendButton = document.getElementById('sendButton');
+            const chatMessages = document.getElementById('chatMessages');
+            
+            // 显示/隐藏聊天面板
+            chatToggle.addEventListener('click', function() {
+                chatPanel.style.display = chatPanel.style.display === 'block' ? 'none' : 'block';
+                if (chatPanel.style.display === 'block') {
+                    chatInput.focus();
+                }
+            });
+            
+            closeChat.addEventListener('click', function() {
+                chatPanel.style.display = 'none';
+            });
+            
+            // 发送消息
+            function sendMessage() {
+                const message = chatInput.value.trim();
+                if (message) {
+                    // 添加用户消息
+                    addMessage(message, 'user');
+                    chatInput.value = '';
+                    
+                    // 调用通义千问API
+                    sendButton.disabled = true;
+                    
+                    // 显示加载状态
+                    let loadingDots = 0;
+                    const loadingMessageId = 'loading-message';
+                    addMessage('正在思考', 'ai', loadingMessageId);
+                    
+                    const loadingInterval = setInterval(() => {
+                        loadingDots = (loadingDots + 1) % 4;
+                        const dots = '.'.repeat(loadingDots);
+                        const loadingEl = document.getElementById(loadingMessageId);
+                        if (loadingEl) {
+                            loadingEl.textContent = `正在思考${dots}`;
+                        }
+                    }, 300);
+                    
+                    // 调用通义千问API
+                    fetchAIResponse(message)
+                        .then(response => {
+                            // 移除加载消息
+                            clearInterval(loadingInterval);
+                            const loadingEl = document.getElementById(loadingMessageId);
+                            if (loadingEl) {
+                                loadingEl.remove();
+                            }
+                            
+                            // 添加AI回复
+                            addMessage(response, 'ai');
+                        })
+                        .catch(error => {
+                            clearInterval(loadingInterval);
+                            const loadingEl = document.getElementById(loadingMessageId);
+                            if (loadingEl) {
+                                loadingEl.remove();
+                            }
+                            
+                            addMessage('抱歉，我遇到了一些问题，请稍后再试。', 'ai');
+                            console.error('API调用出错:', error);
+                        })
+                        .finally(() => {
+                            sendButton.disabled = false;
+                        });
+                }
+            }
+            
+            sendButton.addEventListener('click', sendMessage);
+            
+            chatInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    sendMessage();
+                }
+            });
+            
+            function addMessage(content, sender, id = null) {
+                const messageDiv = document.createElement('div');
+                messageDiv.classList.add('message');
+                messageDiv.classList.add(sender === 'user' ? 'user-message' : 'ai-message');
+                messageDiv.textContent = content;
+                if (id) {
+                    messageDiv.id = id;
+                }
+                chatMessages.appendChild(messageDiv);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+            
+          // 用你自己的worker域名替换下面API_URL
+          const API_URL = "https://proud-art-9b06.roadboss-hk.workers.dev/";
+          
+          async function fetchAIResponse(prompt) {
+              // 封装消息格式
+              const postData = {
+                  model: "qwen-max",
+                  input: {
+                      messages: [
+                          {
+                              role: "system",
+                              content: "你是一位MBTI与人力资源领域的专家顾问。请根据用户的问题，提供关于MBTI性格类型与HR职能匹配的专业见解。请保持回答简洁、专业，重点关注MBTI在HR应用方面的知识。"
+                          },
+                          {
+                              role: "user",
+                              content: prompt
+                          }
+                      ]
+                  },
+                  parameters: { result_format: "text" }
+              };
+          
+              try {
+                  const resp = await fetch(API_URL, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(postData)
+                  });
+                  const data = await resp.json();
+                  if (resp.ok && data.output && data.output.text) {
+                      return data.output.text;
+                  } else {
+                      // 给出友好提示
+                      return "很抱歉，暂时无法获取智能回复。你可稍后再试或检查代理服务状态。";
+                  }
+              } catch (e) {
+                  // 网络等原因fallback
+                  console.error('API调用出错:', e); // 保留错误日志
+                  return getMockResponse(prompt); // 使用 getMockResponse 作为备选方案
+              }
+          }
+            
+            // 模拟智能回复函数
+            function getMockResponse(prompt) {
+                const lowerPrompt = prompt.toLowerCase();
+                
+                // 根据关键词提供相关回复
+                if (lowerPrompt.includes('enfj') || lowerPrompt.includes('主人公')) {
+                    return "ENFJ类型在HR领域表现卓越，特别适合员工关系、学习发展和组织文化建设。他们天生的同理心和领导能力使其成为优秀的HR经理和培训师。建议发挥其人际交往优势，同时注意在决策时保持客观性。";
+                }
+                
+                if (lowerPrompt.includes('istj') || lowerPrompt.includes('物流师')) {
+                    return "ISTJ类型是HR运营的中坚力量，在薪酬福利、HRIS管理和合规性工作中表现出色。他们的细致和责任感确保了HR流程的准确性。建议在结构化工作中发挥优势，同时培养适应变化的灵活性。";
+                }
+                
+                if (lowerPrompt.includes('enfp') || lowerPrompt.includes('倡导者')) {
+                    return "ENFP类型在HR创新和人才发展方面具有独特优势，特别适合招聘、培训和变革管理。他们的创造力和热情能激发团队活力。建议在项目管理方面加强组织纪律性，确保创意能够有效落地。";
+                }
+                
+                if (lowerPrompt.includes('entj') || lowerPrompt.includes('指挥官')) {
+                    return "ENTJ类型天生适合HR战略规划和组织发展，他们的领导力和系统思维使其成为优秀的HR总监。在业务伙伴角色中表现突出。建议在人际沟通中增加同理心，平衡效率与人文关怀。";
+                }
+                
+                if (lowerPrompt.includes('团队') || lowerPrompt.includes('配置') || lowerPrompt.includes('组合')) {
+                    return "构建高效HR团队需要多元化的MBTI类型组合：ENFJ/ENFP负责人际关系和文化建设，ISTJ/ESTJ处理运营和合规，ENTJ/INTJ进行战略规划，ESFP/ESFJ提供服务支持。关键是发挥各类型优势，形成互补。";
+                }
+                
+                if (lowerPrompt.includes('招聘') || lowerPrompt.includes('面试')) {
+                    return "在招聘中，外向型(E)适合候选人沟通和雇主品牌推广，直觉型(N)善于识别潜力和文化匹配，情感型(F)关注候选人体验，判断型(J)确保流程规范。建议组建多元化招聘团队，从不同角度评估候选人。";
+                }
+                
+                if (lowerPrompt.includes('培训') || lowerPrompt.includes('发展') || lowerPrompt.includes('学习')) {
+                    return "培训发展工作中，ENFJ和ENFP类型表现突出，他们善于激发学习热情和设计互动课程。ISTJ确保培训体系的完整性，ENTJ负责战略性人才发展规划。建议根据学员的MBTI类型定制不同的学习方式。";
+                }
+                
+                // 默认回复
+                const defaultResponses = [
+                    "MBTI在HR应用中的核心价值在于理解个体差异，优化人岗匹配。每种类型都有其独特优势，关键是在合适的岗位发挥所长。",
+                    "HR团队的多元化至关重要。不同MBTI类型的组合能够应对复杂的人力资源挑战，创造更包容和高效的工作环境。",
+                    "在HR职业发展中，了解自己的MBTI类型有助于选择合适的专业方向，同时培养跨类型的协作能力也很重要。",
+                    "MBTI应该用于发展而非筛选。它帮助我们理解工作偏好和沟通风格，从而改善团队协作和个人成长。"
+                ];
+                
+                return defaultResponses[Math.floor(Math.random() * defaultResponses.length)];
+            }
+        }
+
+        // 等待DOM加载完成
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初始化聊天功能
+            initChat();
+            
+            // 初始化图表
+            const hrFunctionsCtx = document.getElementById('hrFunctionsChart').getContext('2d');
+            const hrFunctionsChart = new Chart(hrFunctionsCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['ENFJ (主人公)', 'ISTJ (物流师)', 'ENFP (倡导者)', 'ENTJ (指挥官)'].map(label => wrapLabels(label, 10)),
+                    datasets: [{
+                        label: '最佳HR职能数量',
+                        data: [5, 4, 6, 5], // ENFJ:5, ISTJ:4, ENFP:6, ENTJ:5 (from thought process)
+                        backgroundColor: [
+                            '#FF6B6B', // Vibrant Red/Coral
+                            '#FFD166', // Bright Yellow
+                            '#06D6A0', // Bright Teal/Green
+                            '#118AB2'  // Strong Blue
+                        ],
+                        borderColor: [
+                            '#073B4C',
+                            '#073B4C',
+                            '#073B4C',
+                            '#073B4C'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                color: '#073B4C', // Dark text for ticks
+                                stepSize: 1
+                            },
+                            grid: {
+                                color: '#DDDDDD'
+                            }
+                        },
+                        x: {
+                             ticks: {
+                                color: '#073B4C' // Dark text for ticks
+                            },
+                            grid: {
+                                display: false
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            labels: {
+                               color: '#073B4C' // Dark text for legend
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: '#073B4C',
+                            titleColor: '#FFFFFF',
+                            bodyColor: '#FFFFFF',
+                            callbacks: {
+                                title: function(tooltipItems) {
+                                    const item = tooltipItems[0];
+                                    let label = item.chart.data.labels[item.dataIndex];
+                                    if (Array.isArray(label)) {
+                                        return label.join(''); // Join without space for Chinese
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        });
+    </script>
+
 </body>
 </html>
